@@ -1,16 +1,19 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 public class PlayerMovement : MonoBehaviour
 {
-    //game vars
     private Rigidbody2D rb;
-    int jump;
-    float dirX;
-
+    Player player;
+    bool connected = false;
     //network vars
     UdpClient udpc;
     IPEndPoint ep;
@@ -21,7 +24,6 @@ public class PlayerMovement : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        rb = GetComponent<Rigidbody2D>();
 
         udpc = new UdpClient("127.0.0.1", 7878);
         ep = null;
@@ -30,31 +32,70 @@ public class PlayerMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        // get movement info
-        dirX = Input.GetAxis("Horizontal");
-        jump = 0;
-        if (Input.GetButtonDown("Jump"))
+        if (!connected) 
         {
-            jump = 1;
-        }
-        
-        // send data
-        try
+            if (udpc.Available > 0)
+            {
+                // received Data
+                rdata = udpc.Receive(ref ep);
+                player = Deserialize(rdata);
+                connected = true;
+            }
+            else
+            {
+                send = Encoding.ASCII.GetBytes("hello");
+                udpc.Send(send, send.Length);
+            }
+        } 
+        else
         {
-            // Data to send
-            send = Encoding.ASCII.GetBytes(jump.ToString()+dirX.ToString());
+            // get movement info
+            player.dirX = Input.GetAxis("Horizontal");
+            player.jump = 0;
+            if (Input.GetButtonDown("Jump"))
+            {
+                player.jump = 1;
+            }
+
+            // Data to send    
+            send = Serialize(player);
             udpc.Send(send, send.Length);
             if (udpc.Available > 0)
             {
                 // received Data
                 rdata = udpc.Receive(ref ep);
-                bp = Encoding.ASCII.GetString(rdata);
-                Debug.Log(bp);
+                player = Deserialize(rdata);
             }
         }
+        /*
         catch (Exception e)
         {
-            Debug.LogError(e.Message);
+            // Get stack trace for the exception with source file information
+            var st = new StackTrace(e, true);
+            // Get the top stack frame
+            var frame = st.GetFrame(st.FrameCount - 1);
+            // Get the line number from the stack frame
+            var line = frame.GetFileLineNumber();
+            Debug.LogError(e.Message + line);
+        }
+        */
+    }
+    static byte[] Serialize(object obj)
+    {
+        using (MemoryStream memoryStream = new MemoryStream())
+        {
+            IFormatter formatter = new BinaryFormatter();
+            formatter.Serialize(memoryStream, obj);
+            return memoryStream.ToArray();
+        }
+    }
+    // Deserialize a byte array into an object
+    static Player Deserialize(byte[] data)
+    {
+        using (MemoryStream memoryStream = new MemoryStream(data))
+        {
+            IFormatter formatter = new BinaryFormatter();
+            return (Player)formatter.Deserialize(memoryStream);
         }
     }
 }

@@ -1,83 +1,125 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.Serialization;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Windows;
+using Debug = UnityEngine.Debug;
+
 
 public class PlayerManager : MonoBehaviour
 {
     //game vars
+    Player player;
     private Rigidbody2D rb;
-    float dirX;
-
     //network vars
-    IDictionary<string, int> Players;
+    Player[] Players;
+    IDictionary<string, int> Addresses;
     int counter;
     string address;
     UdpClient udpc;
     IPEndPoint ep;
     byte[] receivedData;
     string received;
-    byte[] sdata;
+    byte[] send;
 
     void Start()
     {
         //Application.targetFrameRate = 1;
-        rb = GetComponentInChildren<Rigidbody2D>();
-        Players = new Dictionary<string, int>();
+        Players = new Player[4];
+        Addresses = new Dictionary<string, int>();
         counter = 1;
         udpc = new UdpClient(7878);
         Debug.Log("Server Started and servicing on port no. 7878");
         ep = null;
     }
 
-    
+
     void Update()
     {
         try
         {
-            if (udpc.Available > 0)
+            while (udpc.Available > 0)
             {
                 // get data
                 receivedData = udpc.Receive(ref ep);
-                address = ep.Address.ToString() + " " + ep.Port.ToString();
-
-                // if from new connection, add to dict
-                if (Players.ContainsKey(address) == false)
+                try
                 {
-                    Debug.Log("connection from: " + address + "    assigned player number: " + counter);
-                    Players.Add(address, counter);
-                    counter++;
+                    received = Encoding.ASCII.GetString(receivedData);
+                }
+                catch (Exception e)
+                {
+                    Debug.Log(e);
+                }
+                address = ep.Address.ToString() + " " + ep.Port.ToString();
+                Debug.Log("received:" + Encoding.ASCII.GetString(receivedData));
+                
+                // if asking player, give
+                if (received == "hello")
+                {
+                    if (Addresses.ContainsKey(address))
+                    {
+                        // send the player that match the id
+                        Debug.Log("sending again to player number: " + Addresses[address]);
+                        send = Serialize(Players[Addresses[address]]);
+                        udpc.Send(send, send.Length, ep);
+                    }
+                    else
+                    {
+                        Addresses.Add(address, counter);
+                        Players[counter] = new Player(address, counter);
+                        Debug.Log("connection from: " + address + "    assigned player number: " + counter);
+                        send = Serialize(Players[counter]);
+                        udpc.Send(send, send.Length, ep);
+                        counter++;
+                    }
+                    return;
                 }
 
                 //move based on data
-                received = Encoding.ASCII.GetString(receivedData);
-                if (received[0] == '1')
+                player = Deserialize(receivedData);
+                rb = GameObject.Find("player" + player.id).GetComponent<Rigidbody2D>();
+                //Debug.Log(player.ToString());
+                if (player.jump == 1)
                     rb.velocity = new Vector2(rb.velocity.x, 13f);
-                try
-                {
-                    dirX = float.Parse(received.Substring(1, received.Length - 1),CultureInfo.InvariantCulture.NumberFormat);
-                }
-                catch (FormatException)
-                {
-                    dirX = 0;
-                }
-                rb.velocity = new Vector2(dirX * 7f, rb.velocity.y);
-
-                // sign and send back
-                Debug.Log("received: " + received + "    from player number: " + Players[address]);
-                received = received + " server signed, enjoy player number: " + Players[address];
-                sdata = Encoding.ASCII.GetBytes(received);
-                udpc.Send(sdata, sdata.Length, ep);
+                rb.velocity = new Vector2(player.dirX * 7f, rb.velocity.y);
             }
+
         }
         catch (Exception e)
         {
-            Debug.LogError(e.Message);
+            // Get stack trace for the exception with source file information
+            var st = new StackTrace(e, true);
+            // Get the top stack frame
+            var frame = st.GetFrame(st.FrameCount - 1);
+            // Get the line number from the stack frame
+            var line = frame.GetFileLineNumber();
+            Debug.LogError(e.Message + line);
+        }
+    }
+    static byte[] Serialize(object obj)
+    {
+        using (MemoryStream memoryStream = new MemoryStream())
+        {
+            IFormatter formatter = new BinaryFormatter();
+            formatter.Serialize(memoryStream, obj);
+            return memoryStream.ToArray();
+        }
+    }
+    // Deserialize a byte array into an object
+    static Player Deserialize(byte[] data)
+    {
+        using (MemoryStream memoryStream = new MemoryStream(data))
+        {
+            IFormatter formatter = new BinaryFormatter();
+            return (Player)formatter.Deserialize(memoryStream);
         }
     }
 }
