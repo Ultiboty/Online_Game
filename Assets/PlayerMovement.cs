@@ -14,7 +14,9 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     Player player;
     bool connected = false;
+    bool is_host = false;
     //network vars
+    public string ip = "";
     UdpClient udpc;
     IPEndPoint ep;
     byte[] send;
@@ -67,18 +69,7 @@ public class PlayerMovement : MonoBehaviour
                 player = Deserialize(rdata);
             }
         }
-        /*
-        catch (Exception e)
-        {
-            // Get stack trace for the exception with source file information
-            var st = new StackTrace(e, true);
-            // Get the top stack frame
-            var frame = st.GetFrame(st.FrameCount - 1);
-            // Get the line number from the stack frame
-            var line = frame.GetFileLineNumber();
-            Debug.LogError(e.Message + line);
-        }
-        */
+
     }
     static byte[] Serialize(object obj)
     {
