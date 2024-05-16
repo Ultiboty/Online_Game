@@ -32,7 +32,7 @@ public class PlayerMovement : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (!connected) 
+        if (!connected)
         {
             if (udpc.Available > 0)
             {
@@ -46,7 +46,7 @@ public class PlayerMovement : MonoBehaviour
                 send = Encoding.ASCII.GetBytes("hello");
                 udpc.Send(send, send.Length);
             }
-        } 
+        }
         else
         {
             // get movement info
@@ -65,6 +65,12 @@ public class PlayerMovement : MonoBehaviour
                 // received Data
                 rdata = udpc.Receive(ref ep);
                 player = Deserialize(rdata);
+                rb = GameObject.Find("player" + player.id).GetComponent<Rigidbody2D>();
+                rb.transform.position = new Vector3(player.position[0], player.position[1], 0);
+                //Debug.Log(player.ToString());
+                if (player.jump == 1)
+                    rb.velocity = new Vector2(rb.velocity.x, 13f);
+                rb.velocity = new Vector2(player.dirX * 7f, rb.velocity.y);
             }
         }
         /*

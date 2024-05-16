@@ -59,8 +59,8 @@ public class PlayerManager : MonoBehaviour
                     Debug.Log(e);
                 }
                 address = ep.Address.ToString() + " " + ep.Port.ToString();
-                Debug.Log("received:" + Encoding.ASCII.GetString(receivedData));
-                
+                //Debug.Log("received:" + Encoding.ASCII.GetString(receivedData));
+
                 // if asking player, give
                 if (received == "hello")
                 {
@@ -86,10 +86,21 @@ public class PlayerManager : MonoBehaviour
                 //move based on data
                 player = Deserialize(receivedData);
                 rb = GameObject.Find("player" + player.id).GetComponent<Rigidbody2D>();
+                player.position[0] = rb.transform.position.x;
+                player.position[1] = rb.transform.position.y;
+                Players[player.id] = player;
                 //Debug.Log(player.ToString());
                 if (player.jump == 1)
                     rb.velocity = new Vector2(rb.velocity.x, 13f);
                 rb.velocity = new Vector2(player.dirX * 7f, rb.velocity.y);
+                for (int i = 1; i < counter; i++)
+                {
+                    Debug.Log(Players[i].jump);
+                    Debug.Log(Players[i].dirX);
+                    send = Serialize(Players[i]);
+                    udpc.Send(send, send.Length, ep);
+                }
+
             }
 
         }
@@ -123,3 +134,4 @@ public class PlayerManager : MonoBehaviour
         }
     }
 }
+
